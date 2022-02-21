@@ -4,7 +4,7 @@ output:
   flexdashboard::flex_dashboard:
     orientation: columns
     vertical_layout: fill
-    source_code: "https://github.com/nBhabish/US-Natural-Gas-Demand-Forecast"
+    source_code: "https://github.com/nBhabish/Transit-Costs"
     theme: 
       version: 4
       navbar-bg: "#466D53"
