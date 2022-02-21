@@ -1,0 +1,207 @@
+---
+title: "Transit Costs"
+output: 
+  flexdashboard::flex_dashboard:
+    orientation: columns
+    vertical_layout: fill
+    source_code: "https://github.com/nBhabish/US-Natural-Gas-Demand-Forecast"
+    theme: 
+      version: 4
+      navbar-bg: "#466D53"
+      base_font:
+        google: BenchNine
+      heading_font:
+        google: BenchNine
+---
+
+```{r setup, include=FALSE}
+library(flexdashboard)
+library(tidyverse)
+library(tidytuesdayR)
+
+library(nationalparkcolors)
+library(paletteer)
+library(bslib)
+
+
+library(extrafontdb)
+library(showtextdb)
+library(extrafont)
+library(showtext)
+
+
+library(ggtext)
+library(ggrepel)
+
+
+library(glue)
+
+showtext_auto()
+font_add_google("BenchNine", family = "BenchNine")
+```
+
+# Global Transit Costs
+
+## Column {data-width=500}
+
+### Major Lines Construction in the United States
+
+```{r}
+library(countrycode)
+transit_cost <- readr::read_csv('https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2021/2021-01-05/transit_cost.csv') %>% 
+  filter(!is.na(e)) %>% 
+  mutate_at(vars(start_year,end_year, real_cost), as.numeric) %>% 
+  mutate(country_code = ifelse(country == "UK", "GB", country), 
+         country      = countrycode(country_code, "iso2c", "country.name"))
+```
+
+
+```{r}
+transit_cost %>% 
+  filter(country == "United States") %>% 
+  mutate(line = line %>% fct_reorder(end_year, last)) %>% 
+  mutate(city = city %>% fct_reorder2(line, end_year)) %>% 
+  ggplot(aes(xmin = start_year, xmax = end_year, y = line, color = city))+
+  geom_errorbarh(height = .1, size = 1)+
+  theme_minimal()+
+  theme(text = element_text(family = "BenchNine"), 
+        legend.position = "bottom")+
+  scale_color_paletteer_d("nationalparkcolors::Arches")+
+  labs(color = "Cities", 
+       y     = "Line",
+       title = "Major Lines Construction in the United States w/ Start and End Dates")
+```
+
+## Column {.sidebar}
+
+<h3><b><a href = "https://github.com/rfordatascience/tidytuesday">About #TidyTuesday Project</a></b></h3>
+
+A weekly data project aimed at the R ecosystem. As this project was borne out of the R4DS Online Learning Community and the R for Data Science textbook, an emphasis was placed on understanding how to summarize and arrange data to make meaningful charts with ggplot2, tidyr, dplyr, and other tools in the tidyverse ecosystem.
+
+<b><a href = "https://github.com/rfordatascience/tidytuesday/blob/master/data/2021/2021-01-05/readme.md">Data: Transit Cost</a></b>
+
+
+## Column {data-width=500}
+```{r}
+# transit_cost %>% 
+#   ggplot(aes(cost_km_millions))+
+#   geom_histogram(fill = "#769370", alpha = 0.8, color = "white")+
+#   geom_vline(xintercept = 233, color = "#F17236")+
+#   scale_x_log10(labels = scales::dollar_format(suffix = "M"))+
+#   labs(
+#     x = "Cost/km in millions of USD (log-scaled plot)", 
+#     subtitle = "The<span style= 'color: #F17236'> orange </span>line represents the average cost of $233M per kilometer",
+#     y = ""
+#   )+
+#   theme_minimal()+
+#   theme(
+#     text = element_text(family = "BenchNine"), 
+#     plot.subtitle = element_markdown(size = 12), 
+#     plot.title    = element_text(size = 20, face = "bold")
+#   )
+```
+
+### Countries w/ Frequent Transit Projects
+
+```{r}
+transit_cost %>% 
+  filter(!is.na(cost_km_millions), 
+         !is.na(rr)) %>% 
+  mutate(rr = ifelse(rr, "Is Railroad", "Non-Railroad")) %>% 
+  mutate(country = fct_lump(country, 8)) %>% 
+  add_count(country) %>%
+  mutate(country = glue("{country} ({n})"), 
+         country = country %>% fct_reorder(cost_km_millions)) %>% 
+  ggplot(aes(cost_km_millions, country, fill = rr))+
+  geom_boxplot()+
+  theme_minimal()+
+  labs(x = "Cost/km in millions of USD", 
+       y = "", 
+       fill = "Railroad?", 
+       title = "Countries w/ Frequent Transit Projects", 
+       subtitle = "<span style= 'color:#A8CDEC'>Railroad</span> vs <span style= 'color:#F6955E'>Non-railroad</span> costs are obvious from the plot in different countries. The United States leads the cost/km in 
+       \n<span style= 'color:#A8CDEC'>Railroad</span> category.")+
+  scale_fill_paletteer_d("nationalparkcolors::Arches")+
+  scale_x_continuous(labels = scales::dollar_format(suffix = "M"))+
+  theme(text = element_text(family = "BenchNine"), 
+        plot.title = element_text(size = 20), 
+        plot.subtitle = element_markdown(size = 10), 
+        legend.position = "none")
+```
+
+
+# China (Deeper Dive)
+
+## Column {.sidebar}
+
+This #TidyTuesday data contains a lot of observations coming from China. It is only 
+fair to dig deeper and explore transit projects in China. 
+
+Shanghai and Beijing, the two major cities of China, seem to have more transit projects compared to other cities. The y-axis labels on left plot informs the number of transit projects by cities in China (the number within the parenthesis).  
+
+It is fairly obvious that transit projects with 100% completion rate cost more per km in millions of USD compared to projects that are not 100% completed. 
+
+## Column {data-width = 500}
+
+### Construction Status of Transits and Costs/km in Millions of USD
+```{r}
+transit_cost %>% 
+  filter(!is.na(tunnel_per)) %>% 
+  filter(country == "China") %>%
+  mutate(city = city %>% fct_lump(9)) %>% 
+  add_count(city) %>% 
+  mutate(city = glue("{city}({n})")) %>% 
+  mutate(city = city %>% fct_reorder(cost_km_millions)) %>% 
+  mutate(tunnel_per = parse_number(tunnel_per), 
+         tunnel_per_label = ifelse(tunnel_per == 100, "100% Finished", "Work In Progress")) %>% 
+  ggplot(aes(cost_km_millions, city, fill = tunnel_per_label))+
+  geom_boxplot()+
+  labs(fill = "Construction Status?", 
+       x    = "Cost/km in millions of USD", 
+       y    = "")+
+  scale_fill_paletteer_d("nationalparkcolors::Arches")+
+  scale_x_continuous(labels = scales::dollar_format(suffix = "M"))+
+  theme_minimal()+
+  theme(text = element_text(family = "BenchNine"),
+        legend.position = "top")
+  
+```
+
+## Column {data-width = 500}
+
+
+### Transit Projects Cost/km in Millions of USD Stats by Year
+```{r}
+transit_cost %>% 
+  filter(country == "China") %>% 
+  add_count(year) %>% 
+  filter(n>=4) %>% 
+  group_by(year) %>% 
+  mutate(cost_km_millions_low = first(cost_km_millions[which.min(cost_km_millions)]),
+         cost_km_millions_high = first(cost_km_millions[which.max(cost_km_millions)]),
+         cost_km_millions_avg = mean(cost_km_millions)) %>% 
+  ungroup() %>% 
+  select(year, cost_km_millions_avg, cost_km_millions_low, cost_km_millions_high) %>%
+  distinct() %>% 
+  arrange(year) %>% 
+  pivot_longer(-year) %>% 
+  mutate(name = name %>% fct_reorder(-value)) %>% 
+  ggplot(aes(year, value, color = name))+
+  geom_line(size = 1.2)+
+  expand_limits(y = 0)+
+  annotate(geom = "text", x = 2008, y = 709, label = "Airport Contact Line (Shanghai): $709M", 
+           hjust = 0, family = "BenchNine", color = "#682C37", size = 4)+
+  annotate(geom = "segment", x = 2014, y = 709, yend = 709, xend = 2017.80, color = "#682C37", 
+           arrow = arrow(angle = 15, length = unit(0.5, "lines")))+
+  scale_y_continuous(labels = scales::dollar_format(suffix = "M"))+
+  theme_minimal()+
+  labs(x = "", 
+       y = "Cost/km in millions of USD", 
+       color = "")+
+  scale_color_paletteer_d("nationalparkcolors::Arches")+
+  theme(legend.position = "top", 
+        text = element_text(family = "BenchNine"))
+```
+
+
+
